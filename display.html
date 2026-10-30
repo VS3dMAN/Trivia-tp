@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head>
+<body><div class="board">
+  <h1 id="title">Loading…</h1>
+  <div class="list" id="list"></div>
+</div>
+<button class="btn ghost fs" onclick="document.documentElement.requestFullscreen()">⛶ Fullscreen</button>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const id = params.get("game"), list = document.getElementById("list");
+let prev = {}, last = null;
+
+function render(game) {
+  last = game;
+  document.getElementById("title").innerHTML = "🏆 " + esc(game.title) + " <span>· Live</span>";
+  const teams = game.teams.map((t, i) => ({ ...t, i }));
+  const sorted = [...teams].sort((a, b) => b.score - a.score || a.i - b.i);
+  const H = list.clientHeight, n = sorted.length, gap = Math.min(16, H * 0.015);
+  const h = Math.min((H - gap * (n - 1)) / n, H * 0.16);
+  const font = Math.max(14, h * 0.45);
+  sorted.forEach((t, pos) => {
+    let el = document.getElementById("t" + t.i);
+    if (!el) {
+      el = document.createElement("div"); el.id = "t" + t.i; el.className = "bar";
+      el.innerHTML = '<span class="rank"></span><span class="tname"></span><span class="tscore"></span>';
+      el.style.top = pos * (h + gap) + "px"; list.appendChild(el);
+    }
+    const rank = sorted.findIndex((s) => s.score === t.score) + 1; // ties share a rank
+    el.style.height = h + "px"; el.style.fontSize = font + "px"; el.style.top = pos * (h + gap) + "px";
+    el.classList.toggle("first", rank === 1 && t.score > 0);
+    el.querySelector(".rank").textContent = ["🥇", "🥈", "🥉"][rank - 1] || "#" + rank;
+    el.querySelector(".tname").textContent = t.name;
+    el.querySelector(".tscore").textContent = t.score;
+    if (prev[t.i] !== undefined && prev[t.i] !== t.score) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+    prev[t.i] = t.score;
+  });
+}
+if (!id) document.getElementById("title").textContent = "No game id in link";
+else fetchGame(id).then((g) => { render(g); watchGame(id, render); })
+  .catch(() => (document.getElementById("title").textContent = "Game not found"));
+addEventListener("resize", () => last && render(last));
+</script></body></html>

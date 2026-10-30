@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trivia Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head>
+<body><div class="wrap">
+  <h1>🏆 Trivia Scoreboard</h1>
+  <p class="muted">Set up your teams, press start, then open the scoreboard on the projector and the admin panel on your phone.</p>
+
+  <div class="card" id="setup">
+    <label>Event title</label><input id="title" value="Trivia Night">
+    <label>Number of teams</label><input id="count" type="number" min="2" max="30" value="4">
+    <div id="names"></div>
+    <div class="row" style="margin-top:18px"><button class="btn" id="start">Start ▶</button></div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="card links" id="links" hidden>
+    <h2 style="margin-top:0">You're live 🎉</h2>
+    <label>📺 Scoreboard (projector)</label>
+    <div class="row"><input id="dLink" readonly><button class="btn ghost" data-copy="dLink">Copy</button><a class="btn" id="dOpen" target="_blank">Open</a></div>
+    <label>🎛️ Admin panel (keep this private — it can change scores)</label>
+    <div class="row"><input id="aLink" readonly><button class="btn ghost" data-copy="aLink">Copy</button><a class="btn" id="aOpen" target="_blank">Open</a></div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script><script src="common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+function renderNames() {
+  const n = Math.max(2, Math.min(30, +$("count").value || 2));
+  const old = [...document.querySelectorAll(".tn")].map((i) => i.value);
+  $("names").innerHTML = Array.from({ length: n }, (_, i) =>
+    `<label>Team ${i + 1}</label><input class="tn" value="${esc(old[i] ?? "Team " + (i + 1))}">`).join("");
+}
+$("count").oninput = renderNames; renderNames();
+
+$("start").onclick = async () => {
+  const teams = [...document.querySelectorAll(".tn")].map((i, k) => i.value.trim() || "Team " + (k + 1));
+  $("start").disabled = true; $("err").textContent = "";
+  const { data, error } = await db.rpc("trivia_create_game", { p_title: $("title").value.trim(), p_teams: teams });
+  $("start").disabled = false;
+  if (error) { $("err").textContent = error.message; return; }
+  const base = location.origin + location.pathname.replace(/index\.html$/, "");
+  const d = `${base}display.html?game=${data.id}`, a = `${base}admin.html?game=${data.id}&key=${data.key}`;
+  $("dLink").value = $("dOpen").href = d; $("aLink").value = $("aOpen").href = a;
+  $("setup").hidden = true; $("links").hidden = false;
+};
+document.addEventListener("click", (e) => {
+  const id = e.target.dataset.copy; if (!id) return;
+  navigator.clipboard.writeText($(id).value); e.target.textContent = "Copied!";
+});
+</script></body></html>

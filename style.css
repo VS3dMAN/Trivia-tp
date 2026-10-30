@@ -1,0 +1,37 @@
+:root{--bg:#0b0d1a;--panel:#151933;--line:#272d55;--text:#f3f4ff;--muted:#8d93c2;--accent:#ffcc33;--plus:#2ecc71;--minus:#ff5a5f}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 50% -20%,#24206b,var(--bg) 60%);background-color:var(--bg);color:var(--text);font-family:"Inter",system-ui,sans-serif;min-height:100vh}
+button,input{font:inherit}
+.wrap{max-width:640px;margin:0 auto;padding:32px 16px}
+h1{font-size:2rem;margin:0 0 4px}
+.muted{color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:20px}
+label{display:block;font-size:.85rem;color:var(--muted);margin:12px 0 6px}
+input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0e1126;color:var(--text)}
+.btn{border:0;border-radius:10px;padding:12px 18px;font-weight:700;cursor:pointer;background:var(--accent);color:#1a1300}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:10px;align-items:center}
+.links input{font-size:.85rem}
+.err{color:var(--minus);margin-top:10px}
+/* admin */
+.team{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.team:last-child{border:0}
+.team .name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.team .score{min-width:56px;text-align:center;font-size:1.5rem;font-weight:800;color:var(--accent)}
+.sbtn{width:44px;height:44px;border-radius:10px;border:0;font-weight:800;cursor:pointer;color:#fff}
+.sbtn.m{background:var(--minus)}.sbtn.p{background:var(--plus)}
+/* display */
+.board{height:100vh;display:flex;flex-direction:column;padding:4vh 5vw}
+.board h1{font-size:6vh;text-align:center;margin:0 0 3vh;letter-spacing:.02em}
+.board h1 span{color:var(--accent)}
+.list{position:relative;flex:1}
+.bar{position:absolute;left:0;right:0;display:flex;align-items:center;gap:2vw;padding:0 2.5vw;border-radius:2vh;background:var(--panel);border:1px solid var(--line);transition:top .7s cubic-bezier(.2,.8,.2,1)}
+.bar .rank{font-weight:800;color:var(--muted);width:4ch}
+.bar .tname{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .tscore{font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
+.bar.first{border-color:var(--accent);box-shadow:0 0 4vh rgba(255,204,51,.25)}
+.bar.bump{animation:bump .6s}
+@keyframes bump{30%{transform:scale(1.03);background:#23306b}}
+.fs{position:fixed;right:12px;bottom:12px;opacity:.15}
+.fs:hover{opacity:1}
