@@ -203,7 +203,11 @@ $("rNext").onclick = async () => {
   }
   revealing = true; $("rNext").hidden = true;
   $("rCard").classList.add("shake");
-  for (const n of ["3", "2", "1"]) { $("count3").textContent = n; $("count3").className = "count3 go"; await sleep(650); $("count3").className = "count3"; }
+  for (const n of ["3", "2", "1"]) {
+    const c = $("count3"); c.className = "count3"; void c.offsetWidth; // reflow so the animation restarts for every number
+    c.textContent = n; c.className = "count3 go"; await sleep(650);
+  }
+  $("count3").className = "count3";
   $("count3").textContent = ""; $("rCard").classList.remove("shake");
   const t = teams[rIdx];
   $("rBack").innerHTML = `<h2>Team ${rIdx + 1}</h2><div class="rmembers">${t.members.map((m, k) =>

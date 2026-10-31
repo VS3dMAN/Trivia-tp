@@ -187,17 +187,22 @@ function show() {
       ${q.options.length ? `<div class="opts">${q.options.map((o, i) => {
         const cls = pos.phase === "picked" ? (i === q.correct ? "right" : i === pos.pick ? "wrong" : "dim") : "";
         return `<button class="optb ${cls}" data-opt="${i}"><b>${"ABCDEF"[i]}</b>${esc(o)}</button>`; }).join("")}</div>` : ""}</div>`;
-    if (q.timer && pos.timerEnd) tick();
+    if (q.timer && pos.timerEnd) pos.phase === "live" ? tick() : paintTimer(pos.frozen ?? 0); // freeze after a pick
   }
 }
+function paintTimer(left) {
+  const el = $("timer"); if (!el) return false;
+  $("tnum").textContent = left > 0 ? Math.ceil(left / 1000) : "⏰";
+  el.style.setProperty("--p", (left / (ques().timer * 1000)) * 360 + "deg");
+  el.classList.toggle("low", left <= 5000); el.classList.toggle("done", left === 0);
+  return true;
+}
 function tick() {
-  const total = ques().timer * 1000;
+  let beeped = pos.timerEnd <= Date.now(); // don't re-beep after a refresh on an expired timer
   const step = () => {
-    const left = Math.max(0, pos.timerEnd - Date.now()), el = $("timer"); if (!el) return clearInterval(timerInt);
-    $("tnum").textContent = Math.ceil(left / 1000);
-    el.style.setProperty("--p", (left / total) * 360 + "deg");
-    el.classList.toggle("low", left <= 5000);
-    if (left === 0) { clearInterval(timerInt); el.classList.add("done"); $("tnum").textContent = "⏰"; beep(); }
+    const left = Math.max(0, pos.timerEnd - Date.now());
+    if (!paintTimer(left)) return clearInterval(timerInt);
+    if (left === 0) { clearInterval(timerInt); if (!beeped) { beeped = true; beep(); } }
   };
   step(); timerInt = setInterval(step, 100);
 }
@@ -209,6 +214,7 @@ function beep() {
 $("stage").onclick = (e) => {
   const b = e.target.closest(".optb"); if (!b || pos.phase !== "live") return;
   pos.pick = +b.dataset.opt; pos.phase = "picked"; clearInterval(timerInt);
+  pos.frozen = pos.timerEnd ? Math.max(0, pos.timerEnd - Date.now()) : null;
   const ok = pos.pick === ques().correct;
   show(); if (ok) confettiBurst({ colors: ["#2ecc71", "#ffffff"] });
 };

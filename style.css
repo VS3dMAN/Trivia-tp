@@ -168,3 +168,11 @@ audio.qmedia{width:min(600px,80vw)}
 .timer.done{animation:shake .12s 6}
 @media (max-width:700px){.opts{grid-template-columns:1fr}}
 .fs{top:12px;bottom:auto}
+/* media sizing (videos have a tiny intrinsic box unless sized explicitly) */
+video.qmedia{width:min(1100px,85vw);height:auto;max-height:58vh;background:#000}
+img.qmedia{max-height:50vh;max-width:85vw}
+video.intro-img{width:min(1000px,80vw);height:auto;max-height:45vh;background:#000}
+video.media.thumb{width:260px;max-height:150px;background:#000}
+video.qmedia{max-height:50vh}
+.qview{gap:2.4vh}
+@media (max-width:600px){.sticky-bar #qTitle{order:-1;flex:1 1 100% !important}}
