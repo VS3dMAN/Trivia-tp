@@ -176,3 +176,8 @@ video.media.thumb{width:260px;max-height:150px;background:#000}
 video.qmedia{max-height:50vh}
 .qview{gap:2.4vh}
 @media (max-width:600px){.sticky-bar #qTitle{order:-1;flex:1 1 100% !important}}
+.skip{z-index:40}
+/* keep controls above theme decorations (decor front layer is z 38) */
+.qctl,.addp,.fs,.skip{z-index:45}
+.stage{padding-top:clamp(80px,10vw,140px)}
+video.qmedia{max-height:46vh}
