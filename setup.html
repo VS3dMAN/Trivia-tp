@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trivia Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css"></head>
+<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/diwali.css"></head>
 <body>
 <div class="wrap wide">
   <div class="topbar"><h1>🛠️ Trivia Builder</h1><span id="who" class="muted"></span></div>
@@ -169,4 +169,4 @@ $("saveBtn").onclick = save;
 addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "s" && quiz) { e.preventDefault(); save(); } });
 addEventListener("beforeunload", (e) => { if (dirty) e.preventDefault(); });
 boot();
-</script></body></html>
+</script><script src="/diwali.js"></script></body></html>

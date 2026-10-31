@@ -1,0 +1,34 @@
+/* ---------- Diwali theme (RCB palette: cranberry, gold, royal blue) ---------- */
+:root{--bg:#120a24;--panel:#24133a;--line:#43285e;--text:#fff6e6;--muted:#c4a9cf;--accent:#F7A81B;--plus:#2ecc71;--minus:#ff5a7a;--cran:#D41367;--royal:#17458F}
+body{background:radial-gradient(ellipse at 50% 60%,#3a1240 0%,#1a0b2e 45%,#0b0a1f 100%) fixed;background-color:var(--bg)}
+.stage{background:radial-gradient(ellipse at 50% 60%,#3a1240 0%,#1a0b2e 45%,#0b0a1f 100%);background-color:var(--bg)}
+.screen,.wrap,.board,.allot{position:relative;z-index:1}
+.card,.bar,.slot,.mbox,.ncard,.optb,.chip{background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(4px)}
+input,select,textarea{background:#170c2a}
+.btn{background:linear-gradient(180deg,#ffc24a,#F7A81B);color:#2a1300}
+.btn.ghost{background:transparent}
+.mega,.intro-title{background:linear-gradient(90deg,#F7A81B,#ffdd8a,#D41367,#F7A81B);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:dwShine 6s linear infinite}
+@keyframes dwShine{to{background-position:200% 0}}
+.bar.first{box-shadow:0 0 4vh rgba(247,168,27,.35)}
+.timer{background:conic-gradient(var(--accent) var(--p),#3a2350 0)}
+
+.dw-back,.dw-front{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.dw-back{z-index:0}
+.dw-front{z-index:38}
+.dw-sky{position:absolute;inset:0;width:100%;height:100%}
+.dw-rangoli{position:absolute;left:50%;top:55%;width:min(80vh,70vw);height:min(80vh,70vw);transform:translate(-50%,-50%);opacity:.14}
+.dw-top{position:absolute;top:0;left:0;width:100%;height:clamp(110px,17vw,240px)}
+.dw-corner{position:absolute;bottom:0;width:clamp(140px,16vw,240px);height:auto}
+.dw-l{left:0}.dw-r{right:0;transform:scaleX(-1)}
+.dw-flame{transform-origin:50% 100%;transform-box:fill-box;animation:dwFlick 1.4s ease-in-out infinite}
+.dw-tw use{animation:dwTw 2.6s ease-in-out infinite}
+.dw-lantern{transform-box:fill-box;transform-origin:50% 0;animation:dwSway 4s ease-in-out infinite}
+.dw-spin{transform-origin:center;animation:dwSpin 160s linear infinite}
+@keyframes dwFlick{0%,100%{transform:scaleY(1) rotate(-2deg)}50%{transform:scaleY(1.12) rotate(2deg)}}
+@keyframes dwTw{0%,100%{opacity:.2}50%{opacity:1}}
+@keyframes dwSway{0%,100%{rotate:-3deg}50%{rotate:3deg}}
+@keyframes dwSpin{to{transform:rotate(360deg)}}
+/* keep content clear of the garland */
+.screen.center,.wrap,.board,.allot{padding-top:max(var(--dw-pt,0px),clamp(90px,12vw,170px))}
+@media (prefers-reduced-motion:reduce){.dw-flame,.dw-tw use,.dw-lantern,.dw-spin,.mega,.intro-title{animation:none}}
+.topright{z-index:40;background:rgba(18,10,36,.75);padding:4px 10px;border-radius:8px}

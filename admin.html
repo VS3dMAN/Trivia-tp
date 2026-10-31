@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scoreboard Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css"></head>
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="diwali.css"></head>
 <body><div class="wrap">
   <h1 id="title">🎛️ Admin</h1>
   <p class="muted">Tap to change scores — the projector updates instantly. <a id="disp" target="_blank" style="color:var(--accent)">Open scoreboard ↗</a></p>
@@ -99,4 +99,4 @@ box.onclick = async (e) => {
 
 fetchGame(id).then((g) => { render(g); watchGame(id, render); })
   .catch(() => (box.textContent = "Game not found — check your admin link."));
-</script></body></html>
+</script><script src="diwali.js"></script></body></html>
