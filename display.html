@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="style.css"></head>
 <body><div class="board">
   <h1 id="title">Loading…</h1>
+  <div id="boardSub" class="board-sub" hidden></div>
   <div class="list" id="list"></div>
 </div>
 <button class="btn ghost fs" onclick="document.documentElement.requestFullscreen()">⛶ Fullscreen</button>
@@ -17,6 +18,13 @@
     <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" id="addCancel">Cancel</button><button class="btn" id="addGo">Add & allot 🎲</button></div>
     <div class="err" id="addErr"></div>
   </form>
+</div>
+
+<div class="stage" id="stage" hidden></div>
+<div class="qctl" id="qctl" hidden>
+  <button class="btn ghost" id="qBack">◀</button>
+  <button class="btn ghost" id="qBoard">📊 Scores</button>
+  <button class="btn" id="qNext">Next ▶</button>
 </div>
 
 <div class="roulette" id="roulette" hidden>
@@ -61,7 +69,7 @@ function render(game) {
   });
 }
 if (!id) $("title").textContent = "No game id in link";
-else fetchGame(id).then((g) => { render(g); watchGame(id, render); })
+else fetchGame(id).then((g) => { render(g); initQuiz(g); watchGame(id, render); })
   .catch(() => ($("title").textContent = "Game not found"));
 addEventListener("resize", () => last && render(last));
 
@@ -98,4 +106,119 @@ async function roulette(name, target) {
   await sleep(2600);
   $("roulette").hidden = true;
 }
+
+// ================= v3: quiz presenter =================
+let Q = null, pos = null, timerInt = null, peekBoard = false;
+const POSKEY = "trivia_pos_" + id;
+function savePos() { try { localStorage.setItem(POSKEY, JSON.stringify(pos)); } catch {} }
+function initQuiz(game) {
+  if (!game.quiz || !(game.quiz.rounds || []).length) return;
+  Q = game.quiz;
+  try { pos = JSON.parse(localStorage.getItem(POSKEY)); } catch {}
+  pos ||= { r: 0, q: -1, phase: "intro" };
+  $("qctl").hidden = false; show();
+}
+const round = () => Q.rounds[pos.r], ques = () => round().questions[pos.q];
+const hasAnswer = (q) => !!(q.answer && (q.answer.text || (q.answer.media && q.answer.media.url)));
+
+// linear "Next" through: intro → (pre) → live → [picked] → [answer] → … → scores → next intro … → final
+function next() {
+  const r = round(), q = pos.q >= 0 ? ques() : null;
+  if (pos.phase === "intro") return goQ(0);
+  if (pos.phase === "pre") return reveal();
+  if (pos.phase === "live" && q && !q.options.length) return (pos.phase = "answer", show());
+  if (pos.phase === "picked" && hasAnswer(q)) return (pos.phase = "answer", show());
+  if (pos.phase === "live" && q && q.options.length) return; // pick an option first
+  if (pos.phase === "picked" || pos.phase === "answer") return pos.q + 1 < r.questions.length ? goQ(pos.q + 1) : (pos.phase = "scores", show());
+  if (pos.phase === "scores") return pos.r + 1 < Q.rounds.length ? (pos = { r: pos.r + 1, q: -1, phase: "intro" }, show()) : (pos.phase = "final", show());
+}
+function back() {
+  if (pos.phase === "intro") { if (pos.r === 0) return; pos = { r: pos.r - 1, q: -1, phase: "scores" }; }
+  else if (pos.phase === "scores" || pos.phase === "final") { pos = { r: pos.r, q: round().questions.length - 1, phase: "answer" }; if (!round().questions.length) pos = { r: pos.r, q: -1, phase: "intro" }; }
+  else if (pos.q > 0) pos = { r: pos.r, q: pos.q - 1, phase: "answer" };
+  else pos = { r: pos.r, q: -1, phase: "intro" };
+  if (pos.phase === "answer" && ques() && ques().options.length && !hasAnswer(ques())) pos.phase = "live";
+  show();
+}
+function goQ(i) {
+  if (!round().questions.length) { pos.phase = "scores"; return show(); }
+  pos = { r: pos.r, q: i, phase: round().questions[i].timer ? "pre" : "live" };
+  if (pos.phase === "live") pos.timerEnd = null;
+  show();
+}
+function reveal() { const q = ques(); pos.phase = "live"; pos.timerEnd = q.timer ? Date.now() + q.timer * 1000 : null; show(); }
+
+function show() {
+  savePos(); clearInterval(timerInt);
+  document.querySelectorAll("#stage video, #stage audio").forEach((m) => m.pause());
+  const st = $("stage"), r = round(), q = pos.q >= 0 ? ques() : null;
+  const onBoard = pos.phase === "scores" || pos.phase === "final" || peekBoard;
+  st.hidden = onBoard;
+  $("boardSub").hidden = !onBoard;
+  $("boardSub").textContent = peekBoard ? "Current standings" : pos.phase === "final" ? "🏁 Final scores" : `After ${r.title}`;
+  $("qBoard").textContent = peekBoard ? "↩ Back to question" : "📊 Scores";
+  $("qNext").hidden = pos.phase === "final" || peekBoard;
+  $("qNext").textContent = { intro: "Start round ▶", pre: "Reveal question 👀", answer: "Next ▶", scores: pos.r + 1 < Q.rounds.length ? "Next round ▶" : "Final results 🏁" }[pos.phase]
+    || (q && !q.options.length ? "Show answer 💡" : pos.phase === "picked" ? (hasAnswer(q) ? "Show answer 💡" : "Next ▶") : "Next ▶");
+  $("qNext").disabled = pos.phase === "live" && q && q.options.length > 0;
+  if (pos.phase === "final" && !peekBoard) confettiBurst({ particleCount: 300, spread: 160 });
+  if (onBoard) { last && render(last); return; }
+
+  const head = `<div class="stage-tag">${esc(r.title)}${q ? ` · Question ${pos.q + 1} of ${r.questions.length}` : ""}</div>`;
+  if (pos.phase === "intro") {
+    st.innerHTML = `<div class="intro">${head.replace(esc(r.title), `Round ${pos.r + 1} of ${Q.rounds.length}`)}
+      <h1 class="intro-title">${esc(r.title)}</h1>${r.subtitle ? `<p class="intro-sub">${esc(r.subtitle)}</p>` : ""}
+      ${r.image ? mediaHTML(r.image, "intro-img") : ""}</div>`;
+    confettiBurst({ particleCount: 80 });
+  } else if (pos.phase === "pre") {
+    st.innerHTML = `<div class="intro">${head}<h1 class="intro-title">Question ${pos.q + 1}</h1>
+      <p class="intro-sub">⏱️ ${q.timer === 60 ? "1 minute" : q.timer + " seconds"} on the clock</p></div>`;
+  } else if (pos.phase === "answer") {
+    const a = q.answer || {};
+    st.innerHTML = `<div class="qview">${head}<div class="answer-label">Answer</div>
+      ${q.options.length ? `<div class="answer-text">${esc(q.options[q.correct])}</div>` : ""}
+      ${a.text ? `<div class="${q.options.length ? "answer-sub" : "answer-text"}">${esc(a.text)}</div>` : ""}
+      ${mediaHTML(a.media, "qmedia")}</div>`;
+    confettiBurst({ particleCount: 60, colors: ["#2ecc71", "#ffffff"] });
+  } else {
+    st.innerHTML = `<div class="qview">${head}
+      ${q.timer && pos.timerEnd ? '<div class="timer" id="timer"><span id="tnum"></span></div>' : ""}
+      <h1 class="qtext">${esc(q.text)}</h1>${mediaHTML(q.media, "qmedia")}
+      ${q.options.length ? `<div class="opts">${q.options.map((o, i) => {
+        const cls = pos.phase === "picked" ? (i === q.correct ? "right" : i === pos.pick ? "wrong" : "dim") : "";
+        return `<button class="optb ${cls}" data-opt="${i}"><b>${"ABCDEF"[i]}</b>${esc(o)}</button>`; }).join("")}</div>` : ""}</div>`;
+    if (q.timer && pos.timerEnd) tick();
+  }
+}
+function tick() {
+  const total = ques().timer * 1000;
+  const step = () => {
+    const left = Math.max(0, pos.timerEnd - Date.now()), el = $("timer"); if (!el) return clearInterval(timerInt);
+    $("tnum").textContent = Math.ceil(left / 1000);
+    el.style.setProperty("--p", (left / total) * 360 + "deg");
+    el.classList.toggle("low", left <= 5000);
+    if (left === 0) { clearInterval(timerInt); el.classList.add("done"); $("tnum").textContent = "⏰"; beep(); }
+  };
+  step(); timerInt = setInterval(step, 100);
+}
+function beep() {
+  try { const a = new AudioContext(), o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(a.destination); g.gain.setValueAtTime(.3, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, a.currentTime + .8); o.start(); o.stop(a.currentTime + .8); } catch {}
+}
+$("stage").onclick = (e) => {
+  const b = e.target.closest(".optb"); if (!b || pos.phase !== "live") return;
+  pos.pick = +b.dataset.opt; pos.phase = "picked"; clearInterval(timerInt);
+  const ok = pos.pick === ques().correct;
+  show(); if (ok) confettiBurst({ colors: ["#2ecc71", "#ffffff"] });
+};
+$("qNext").onclick = () => { peekBoard = false; next(); };
+$("qBack").onclick = () => { peekBoard = false; back(); };
+$("qBoard").onclick = () => { peekBoard = !peekBoard; show(); };
+addEventListener("keydown", (e) => {
+  if (!Q || !$("addModal").hidden || e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); if (!$("qNext").disabled && !$("qNext").hidden) $("qNext").click(); }
+  if (e.key === "ArrowLeft") $("qBack").click();
+  if (pos && pos.phase === "live" && /^[a-fA-F]$/.test(e.key)) document.querySelector(`.optb[data-opt="${"abcdef".indexOf(e.key.toLowerCase())}"]`)?.click();
+});
 </script></body></html>

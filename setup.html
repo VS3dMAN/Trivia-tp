@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trivia Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"></head>
+<body>
+<div class="wrap wide">
+  <div class="topbar"><h1>🛠️ Trivia Builder</h1><span id="who" class="muted"></span></div>
+  <div id="authArea" class="center-box"></div>
+
+  <section id="listView" hidden>
+    <div class="row"><button class="btn" id="newQuiz">＋ New trivia</button><a class="btn ghost" href="/">▶ Go play</a></div>
+    <div id="quizList"></div>
+  </section>
+
+  <section id="editView" hidden>
+    <div class="row sticky-bar">
+      <button class="btn ghost" id="backList">◀ My trivias</button>
+      <input id="qTitle" class="big-input" placeholder="Trivia title" maxlength="120" style="flex:1">
+      <button class="btn" id="saveBtn">💾 Save</button>
+    </div>
+    <div class="muted" id="saveMsg" style="min-height:1.4em;margin-top:6px"></div>
+    <div id="rounds"></div>
+    <button class="btn ghost" id="addRound" style="width:100%;margin-top:16px">＋ Add round</button>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/config.js"></script><script src="/common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let quiz = null, dirty = false; // {id, title, data:{rounds:[]}}
+
+const blankQ = () => ({ text: "", media: null, timer: 0, options: [], correct: 0, answer: { text: "", media: null } });
+const blankR = (n) => ({ title: "Round " + n, subtitle: "", image: null, questions: [blankQ()] });
+
+async function boot() {
+  if (!(await checkSession())) {
+    $("authArea").hidden = false; authForm($("authArea"), boot); return;
+  }
+  $("authArea").hidden = true;
+  $("who").innerHTML = `${esc(auth.user)} · <a href="#" id="lo" style="color:var(--accent)">Log out</a>`;
+  $("lo").onclick = (e) => { e.preventDefault(); logout(); };
+  showList();
+}
+
+async function showList() {
+  if (dirty && !confirm("Leave without saving?")) return;
+  dirty = false; quiz = null;
+  $("editView").hidden = true; $("listView").hidden = false;
+  $("quizList").innerHTML = '<p class="muted">Loading…</p>';
+  const { data, error } = await db.rpc("trivia_list_quizzes", { p_token: auth.token });
+  if (error) { $("quizList").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+  $("quizList").innerHTML = data.length ? data.map((q) => `
+    <div class="card qitem"><div style="flex:1"><b>${esc(q.title)}</b><div class="muted">${q.rounds} round${q.rounds === 1 ? "" : "s"} · edited ${new Date(q.updated_at).toLocaleString()}</div></div>
+      <button class="btn ghost" data-open="${q.id}">Edit</button><button class="btn ghost" data-del="${q.id}" aria-label="Delete">🗑</button></div>`).join("")
+    : '<div class="card muted">No trivias yet — make your first one.</div>';
+}
+$("quizList").onclick = async (e) => {
+  const o = e.target.dataset.open, d = e.target.dataset.del;
+  if (o) {
+    const { data, error } = await db.rpc("trivia_get_quiz", { p_token: auth.token, p_id: o });
+    if (error) return alert(error.message);
+    openEditor(data);
+  }
+  if (d && confirm("Delete this trivia for good?")) { await db.rpc("trivia_delete_quiz", { p_token: auth.token, p_id: d }); showList(); }
+};
+$("newQuiz").onclick = () => openEditor({ id: null, title: "", data: { rounds: [blankR(1)] } });
+$("backList").onclick = showList;
+
+function openEditor(q) {
+  quiz = q; quiz.data.rounds ||= []; dirty = false;
+  $("listView").hidden = true; $("editView").hidden = false;
+  $("qTitle").value = q.title || ""; $("saveMsg").textContent = "";
+  render();
+}
+
+// ---- render the editor; every field carries data-path like "0.questions.2.text"
+function mediaSlot(path, m, label) {
+  return `<div class="mslot">${m ? `${mediaHTML(m, "thumb")}<button class="btn ghost sm" data-clear="${path}">Remove</button>`
+    : `<label class="btn ghost sm upl">${label}<input type="file" hidden accept="image/*,audio/mpeg,.mp3,video/mp4" data-upload="${path}"></label>`}
+    <span class="muted upmsg"></span></div>`;
+}
+function render() {
+  const R = quiz.data.rounds;
+  $("rounds").innerHTML = R.map((r, ri) => `
+    <div class="card round">
+      <div class="row"><b class="rbadge">Round ${ri + 1}</b><span style="flex:1"></span>
+        <button class="btn ghost sm" data-mv="r:${ri}:-1" ${ri === 0 ? "disabled" : ""}>↑</button>
+        <button class="btn ghost sm" data-mv="r:${ri}:1" ${ri === R.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="btn ghost sm" data-rm="r:${ri}">Delete round</button></div>
+      <label>Intro screen — big text</label><input data-path="${ri}.title" value="${esc(r.title)}" maxlength="80">
+      <label>Supporting line (optional)</label><input data-path="${ri}.subtitle" value="${esc(r.subtitle || "")}" maxlength="160">
+      <label>Intro image (optional)</label>${mediaSlot(`${ri}.image`, r.image, "📷 Add image")}
+      <div class="qs">${r.questions.map((q, qi) => qCard(ri, qi, q, r.questions.length)).join("")}</div>
+      <button class="btn ghost" data-addq="${ri}" style="width:100%;margin-top:10px">＋ Add question</button>
+    </div>`).join("") || '<div class="card muted">No rounds yet.</div>';
+}
+function qCard(ri, qi, q, n) {
+  const p = `${ri}.questions.${qi}`, mcq = q.options.length > 0;
+  return `<div class="qcard">
+    <div class="row"><b>Q${qi + 1}</b><span style="flex:1"></span>
+      <button class="btn ghost sm" data-mv="q:${ri}:${qi}:-1" ${qi === 0 ? "disabled" : ""}>↑</button>
+      <button class="btn ghost sm" data-mv="q:${ri}:${qi}:1" ${qi === n - 1 ? "disabled" : ""}>↓</button>
+      <button class="btn ghost sm" data-rm="q:${ri}:${qi}">Delete</button></div>
+    <label>Question</label><textarea data-path="${p}.text" rows="2" maxlength="500">${esc(q.text)}</textarea>
+    <label>Media (optional — photo, MP3 or MP4, max 5 MB)</label>${mediaSlot(`${p}.media`, q.media, "📎 Add media")}
+    <label>Timer</label>
+    <div class="seg">${[0, 10, 30, 60].map((t) => `<button class="${q.timer === t ? "on" : ""}" data-timer="${p}:${t}">${t === 0 ? "None" : t === 60 ? "1 min" : t + "s"}</button>`).join("")}</div>
+    <label>Answer type</label>
+    <div class="seg"><button class="${!mcq ? "on" : ""}" data-type="${p}:open">Show answer screen</button><button class="${mcq ? "on" : ""}" data-type="${p}:mcq">Multiple choice</button></div>
+    ${mcq ? `<label>Options — tick the right one</label>${q.options.map((o, oi) => `
+      <div class="row opt"><input type="radio" name="c${ri}_${qi}" data-correct="${p}:${oi}" ${q.correct === oi ? "checked" : ""} aria-label="Correct">
+        <input data-path="${p}.options.${oi}" value="${esc(o)}" placeholder="Option ${oi + 1}" maxlength="120" style="flex:1">
+        ${q.options.length > 2 ? `<button class="btn ghost sm" data-rmopt="${p}:${oi}">✕</button>` : ""}</div>`).join("")}
+      ${q.options.length < 6 ? `<button class="btn ghost sm" data-addopt="${p}">＋ Option</button>` : ""}` : ""}
+    <label>${mcq ? "Answer screen after picking (optional)" : "Answer screen"} — text</label>
+    <textarea data-path="${p}.answer.text" rows="2" maxlength="500">${esc(q.answer.text)}</textarea>
+    <label>Answer media (optional)</label>${mediaSlot(`${p}.answer.media`, q.answer.media, "📎 Add media")}
+  </div>`;
+}
+
+// path helpers
+function getAt(path) { return path.split(".").reduce((o, k) => o[k], quiz.data.rounds); }
+function setAt(path, v) { const ks = path.split("."), last = ks.pop(); ks.reduce((o, k) => o[k], quiz.data.rounds)[last] = v; }
+const touch = () => { dirty = true; $("saveMsg").textContent = "Unsaved changes"; };
+
+$("rounds").addEventListener("input", (e) => { const p = e.target.dataset.path; if (p) { setAt(p, e.target.value); touch(); } });
+$("rounds").addEventListener("change", async (e) => {
+  const t = e.target;
+  if (t.dataset.correct) { const [p, oi] = t.dataset.correct.split(":"); getAt(p).correct = +oi; touch(); }
+  if (t.dataset.upload && t.files[0]) {
+    const msg = t.closest(".mslot").querySelector(".upmsg");
+    msg.textContent = "Uploading…";
+    try { setAt(t.dataset.upload, await uploadMedia(t.files[0])); touch(); render(); }
+    catch (err) { msg.textContent = ""; msg.className = "err upmsg"; msg.textContent = err.message; }
+  }
+});
+$("rounds").addEventListener("click", (e) => {
+  const d = e.target.closest("button")?.dataset; if (!d) return;
+  const R = quiz.data.rounds;
+  if (d.clear) setAt(d.clear, null);
+  else if (d.addq) R[+d.addq].questions.push(blankQ());
+  else if (d.timer) { const [p, t] = d.timer.split(":"); getAt(p).timer = +t; }
+  else if (d.type) { const [p, ty] = d.type.split(":"), q = getAt(p); q.options = ty === "mcq" ? (q.options.length ? q.options : ["", "", "", ""]) : []; q.correct = 0; }
+  else if (d.addopt) getAt(d.addopt).options.push("");
+  else if (d.rmopt) { const [p, oi] = d.rmopt.split(":"), q = getAt(p); q.options.splice(+oi, 1); if (q.correct >= q.options.length) q.correct = 0; }
+  else if (d.rm) {
+    const [k, a, b] = d.rm.split(":");
+    if (!confirm(k === "r" ? "Delete this whole round?" : "Delete this question?")) return;
+    k === "r" ? R.splice(+a, 1) : R[+a].questions.splice(+b, 1);
+  } else if (d.mv) {
+    const s = d.mv.split(":"), arr = s[0] === "r" ? R : R[+s[1]].questions, i = +(s[0] === "r" ? s[1] : s[2]), dir = +s[s.length - 1];
+    [arr[i], arr[i + dir]] = [arr[i + dir], arr[i]];
+  } else return;
+  touch(); render();
+});
+$("addRound").onclick = () => { quiz.data.rounds.push(blankR(quiz.data.rounds.length + 1)); touch(); render(); };
+$("qTitle").oninput = touch;
+
+async function save() {
+  $("saveBtn").disabled = true; $("saveMsg").textContent = "Saving…";
+  const { data, error } = await db.rpc("trivia_save_quiz", { p_token: auth.token, p_id: quiz.id, p_title: $("qTitle").value, p_data: quiz.data });
+  $("saveBtn").disabled = false;
+  if (error) { $("saveMsg").textContent = "⚠️ " + error.message; return; }
+  quiz.id = data; dirty = false; $("saveMsg").textContent = "✅ Saved " + new Date().toLocaleTimeString();
+}
+$("saveBtn").onclick = save;
+addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "s" && quiz) { e.preventDefault(); save(); } });
+addEventListener("beforeunload", (e) => { if (dirty) e.preventDefault(); });
+boot();
+</script></body></html>

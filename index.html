@@ -5,11 +5,20 @@
 <link rel="stylesheet" href="style.css"></head>
 <body>
 
+<!-- 0. Login -->
+<section class="screen center" id="sLogin" hidden>
+  <h1 class="mega">🏆 Trivia Night</h1>
+  <div id="loginBox"></div>
+</section>
+
 <!-- 1. Start -->
-<section class="screen center" id="sStart">
+<section class="screen center" id="sStart" hidden>
+  <div class="topright muted"><span id="who"></span> · <a href="/setuptrivia" style="color:var(--accent)">🛠️ Build trivias</a> · <a href="#" id="lo" style="color:var(--accent)">Log out</a></div>
   <h1 class="mega">🏆 Trivia Night</h1>
   <p class="muted">Add your players, pick a team count, and let fate decide.</p>
   <input id="title" class="big-input" value="Trivia Night" aria-label="Event title" style="max-width:420px">
+  <label style="margin:0">Questions</label>
+  <select id="quizPick" class="big-input" style="max-width:420px;width:100%"><option value="">Scoreboard only (no questions)</option></select>
   <button class="btn huge" id="goStart">Start Trivia ▶</button>
 </section>
 
@@ -85,6 +94,17 @@ function save() { try { localStorage.setItem("trivia_players", JSON.stringify(pl
 try { players = JSON.parse(localStorage.getItem("trivia_players")) || []; } catch {}
 
 // 1 → 2
+async function bootHome() {
+  if (!(await checkSession())) { show("sLogin"); authForm($("loginBox"), bootHome); return; }
+  $("who").textContent = auth.user; show("sStart");
+  const { data } = await db.rpc("trivia_list_quizzes", { p_token: auth.token });
+  $("quizPick").innerHTML = '<option value="">Scoreboard only (no questions)</option>' +
+    (data || []).map((q) => `<option value="${q.id}">${esc(q.title)} · ${q.rounds} round${q.rounds === 1 ? "" : "s"}</option>`).join("");
+  if (data && data.length) { $("quizPick").value = data[0].id; if ($("title").value === "Trivia Night") $("title").value = data[0].title; }
+}
+$("lo").onclick = (e) => { e.preventDefault(); logout(); };
+$("quizPick").onchange = () => { const o = $("quizPick").selectedOptions[0]; if ($("quizPick").value) $("title").value = o.textContent.split(" · ")[0]; };
+bootHome();
 $("goStart").onclick = () => { show("sMembers"); renderPlayers(); $("mName").focus(); };
 
 // 2. members
@@ -213,7 +233,7 @@ $("nForm").onsubmit = async (e) => {
   teams[nIdx].name = $("nInput").value.trim() || teams[nIdx].name;
   if (++nIdx < teams.length) return renderNameCard();
   nIdx--; $("nNext").disabled = true; $("err").textContent = "";
-  const { data, error } = await db.rpc("trivia_create_game_v2", { p_title: $("title").value.trim(), p_teams: teams });
+  const { data, error } = await db.rpc("trivia_create_game_v3", { p_token: auth.token, p_title: $("title").value.trim(), p_teams: teams, p_quiz_id: $("quizPick").value || null });
   $("nNext").disabled = false;
   if (error) { $("err").textContent = error.message; return; }
   try { localStorage.removeItem("trivia_players"); } catch {}
