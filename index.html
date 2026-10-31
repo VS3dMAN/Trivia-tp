@@ -3,49 +3,226 @@
 <title>Trivia Scoreboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css"></head>
-<body><div class="wrap">
-  <h1>🏆 Trivia Scoreboard</h1>
-  <p class="muted">Set up your teams, press start, then open the scoreboard on the projector and the admin panel on your phone.</p>
+<body>
 
-  <div class="card" id="setup">
-    <label>Event title</label><input id="title" value="Trivia Night">
-    <label>Number of teams</label><input id="count" type="number" min="2" max="30" value="4">
-    <div id="names"></div>
-    <div class="row" style="margin-top:18px"><button class="btn" id="start">Start ▶</button></div>
-    <div class="err" id="err"></div>
-  </div>
+<!-- 1. Start -->
+<section class="screen center" id="sStart">
+  <h1 class="mega">🏆 Trivia Night</h1>
+  <p class="muted">Add your players, pick a team count, and let fate decide.</p>
+  <input id="title" class="big-input" value="Trivia Night" aria-label="Event title" style="max-width:420px">
+  <button class="btn huge" id="goStart">Start Trivia ▶</button>
+</section>
 
-  <div class="card links" id="links" hidden>
-    <h2 style="margin-top:0">You're live 🎉</h2>
-    <label>📺 Scoreboard (projector)</label>
-    <div class="row"><input id="dLink" readonly><button class="btn ghost" data-copy="dLink">Copy</button><a class="btn" id="dOpen" target="_blank">Open</a></div>
-    <label>🎛️ Admin panel (keep this private — it can change scores)</label>
-    <div class="row"><input id="aLink" readonly><button class="btn ghost" data-copy="aLink">Copy</button><a class="btn" id="aOpen" target="_blank">Open</a></div>
+<!-- 2. Add members -->
+<section class="screen" id="sMembers" hidden>
+  <div class="wrap wide">
+    <h1>👥 Who's playing?</h1>
+    <p class="muted">Type a name and press Enter. <b id="mCount">0</b> players so far.</p>
+    <form class="row" id="mForm"><input id="mName" class="big-input" placeholder="Player name" autocomplete="off" maxlength="40"><button class="btn">Add</button></form>
+    <div class="chips" id="mList"></div>
+    <div class="row end"><button class="btn huge" id="goTeams" disabled>Next: pick teams ▶</button></div>
   </div>
-</div>
+</section>
+
+<!-- 3. Team count -->
+<section class="screen center" id="sCount" hidden>
+  <h1>How many teams?</h1>
+  <div class="stepper"><button class="btn ghost" id="cMinus">−</button><span id="cVal">2</span><button class="btn ghost" id="cPlus">+</button></div>
+  <p class="muted" id="cPreview"></p>
+  <div class="row"><button class="btn ghost" id="backMembers">◀ Back</button><button class="btn huge" id="goShuffle">🎲 Shuffle into teams!</button></div>
+</section>
+
+<!-- 4. Allot animation -->
+<section class="screen" id="sAllot" hidden>
+  <div class="allot">
+    <div class="slot" id="slot">…</div>
+    <div class="mystery" id="mystery"></div>
+  </div>
+  <button class="btn ghost skip" id="skipAllot">Skip ⏭</button>
+</section>
+
+<!-- 5. Reveal -->
+<section class="screen center" id="sReveal" hidden>
+  <p class="muted" id="rStep"></p>
+  <div class="reveal-stage"><div class="rcard" id="rCard"><div class="rfront">?</div><div class="rback" id="rBack"></div></div></div>
+  <div class="count3" id="count3"></div>
+  <button class="btn huge" id="rNext">Reveal Team 1 ✨</button>
+</section>
+
+<!-- 6. Naming -->
+<section class="screen center" id="sName" hidden>
+  <p class="muted" id="nStep"></p>
+  <div class="ncard" id="nCard"></div>
+  <form class="row" id="nForm" style="max-width:520px;width:100%"><input id="nInput" class="big-input" maxlength="40" autocomplete="off"><button class="btn" id="nNext">Next ▶</button></form>
+  <div class="err" id="err"></div>
+</section>
+
+<!-- 7. Links -->
+<section class="screen" id="sLinks" hidden>
+  <div class="wrap">
+    <h1>You're live 🎉</h1>
+    <div class="card links">
+      <label>📺 Streaming screen — open this on this PC (has the “Add player” button, keep it private)</label>
+      <div class="row"><input id="dLink" readonly><a class="btn" id="dOpen">Open ▶</a></div>
+      <label>🎛️ Admin panel — copy and send to the other PC (changes scores & teams)</label>
+      <div class="row"><input id="aLink" readonly><button class="btn" data-copy="aLink">Copy</button></div>
+    </div>
+  </div>
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="config.js"></script><script src="common.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-function renderNames() {
-  const n = Math.max(2, Math.min(30, +$("count").value || 2));
-  const old = [...document.querySelectorAll(".tn")].map((i) => i.value);
-  $("names").innerHTML = Array.from({ length: n }, (_, i) =>
-    `<label>Team ${i + 1}</label><input class="tn" value="${esc(old[i] ?? "Team " + (i + 1))}">`).join("");
-}
-$("count").oninput = renderNames; renderNames();
+let players = [];   // [{id,name}]
+let nTeams = 2;
+let teams = [];     // [{name, members}]
+let skip = false;
 
-$("start").onclick = async () => {
-  const teams = [...document.querySelectorAll(".tn")].map((i, k) => i.value.trim() || "Team " + (k + 1));
-  $("start").disabled = true; $("err").textContent = "";
-  const { data, error } = await db.rpc("trivia_create_game", { p_title: $("title").value.trim(), p_teams: teams });
-  $("start").disabled = false;
-  if (error) { $("err").textContent = error.message; return; }
-  const base = location.origin + location.pathname.replace(/index\.html$/, "");
-  const d = `${base}display.html?game=${data.id}`, a = `${base}admin.html?game=${data.id}&key=${data.key}`;
-  $("dLink").value = $("dOpen").href = d; $("aLink").value = $("aOpen").href = a;
-  $("setup").hidden = true; $("links").hidden = false;
+function show(id) { document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id)); }
+function save() { try { localStorage.setItem("trivia_players", JSON.stringify(players)); } catch {} }
+try { players = JSON.parse(localStorage.getItem("trivia_players")) || []; } catch {}
+
+// 1 → 2
+$("goStart").onclick = () => { show("sMembers"); renderPlayers(); $("mName").focus(); };
+
+// 2. members
+function renderPlayers() {
+  $("mCount").textContent = players.length;
+  $("mList").innerHTML = players.map((p) =>
+    `<span class="chip">${esc(p.name)}<button data-del="${p.id}" aria-label="Remove">×</button></span>`).join("");
+  $("goTeams").disabled = players.length < 2;
+}
+$("mForm").onsubmit = (e) => {
+  e.preventDefault();
+  const name = $("mName").value.trim(); if (!name) return;
+  players.push({ id: uid(), name }); $("mName").value = ""; save(); renderPlayers();
+  $("mList").lastElementChild?.classList.add("pop");
 };
+$("mList").onclick = (e) => {
+  const id = e.target.dataset.del; if (!id) return;
+  players = players.filter((p) => p.id !== id); save(); renderPlayers();
+};
+$("goTeams").onclick = () => { nTeams = Math.min(Math.max(2, nTeams), players.length); renderCount(); show("sCount"); };
+
+// 3. team count
+function sizes(n, k) { return Array.from({ length: k }, (_, i) => Math.floor(n / k) + (i < n % k ? 1 : 0)); }
+function renderCount() {
+  $("cVal").textContent = nTeams;
+  $("cPreview").textContent = `${players.length} players → teams of ${sizes(players.length, nTeams).join(", ")}`;
+}
+$("cMinus").onclick = () => { nTeams = Math.max(2, nTeams - 1); renderCount(); };
+$("cPlus").onclick = () => { nTeams = Math.min(players.length, 50, nTeams + 1); renderCount(); };
+$("backMembers").onclick = () => { show("sMembers"); renderPlayers(); };
+$("goShuffle").onclick = () => allot();
+
+// 4. allot: shuffle, deal round-robin (sizes differ by at most 1), animate.
+async function allot() {
+  const order = shuffle(players);
+  const startAt = Math.floor(Math.random() * nTeams); // who gets the extras is random too
+  teams = Array.from({ length: nTeams }, (_, i) => ({ name: "Team " + (i + 1), members: [] }));
+  const deal = order.map((p, k) => ({ p, t: (startAt + k) % nTeams }));
+  deal.forEach(({ p, t }) => teams[t].members.push(p));
+
+  show("sAllot"); skip = false;
+  $("mystery").innerHTML = teams.map((t, i) =>
+    `<div class="mbox" id="mb${i}" style="--c:${teamColor(i)}"><b>Team ${i + 1}</b><span class="q">?</span><span class="dots" id="md${i}"></span></div>`).join("");
+  const step = Math.max(140, Math.min(700, 14000 / deal.length));
+  for (const { p, t } of deal) {
+    if (skip) break;
+    // slot-machine flicker
+    const spins = 6;
+    for (let s = 0; s < spins && !skip; s++) {
+      $("slot").textContent = players[Math.floor(Math.random() * players.length)].name;
+      $("slot").className = "slot spin"; await sleep(step / (spins + 2));
+    }
+    $("slot").textContent = p.name; $("slot").className = "slot land";
+    await sleep(step / 3);
+    fly(p.name, $("slot"), $("mb" + t), teamColor(t));
+    await sleep(step / 3);
+    addDot(t);
+  }
+  if (skip) teams.forEach((_, t) => { $("md" + t).innerHTML = ""; teams[t].members.forEach(() => addDot(t)); });
+  $("slot").textContent = "Teams locked 🔒"; $("slot").className = "slot land";
+  confettiBurst();
+  await sleep(1400);
+  startReveal();
+}
+$("skipAllot").onclick = () => (skip = true);
+function addDot(t) {
+  $("md" + t).insertAdjacentHTML("beforeend", "<i></i>");
+  const b = $("mb" + t); b.classList.remove("hit"); void b.offsetWidth; b.classList.add("hit");
+}
+function fly(text, from, to, color) {
+  const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+  const el = document.createElement("div"); el.className = "flyer"; el.textContent = text; el.style.background = color;
+  el.style.left = a.left + a.width / 2 + "px"; el.style.top = a.top + a.height / 2 + "px";
+  document.body.appendChild(el);
+  requestAnimationFrame(() => {
+    el.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) translate(-50%,-50%) scale(.3) rotate(${(Math.random() - .5) * 60}deg)`;
+    el.style.opacity = "0";
+  });
+  setTimeout(() => el.remove(), 700);
+}
+
+// 5. reveal one by one
+let rIdx = 0, revealing = false;
+function startReveal() { rIdx = 0; show("sReveal"); resetCard(); }
+function resetCard() {
+  $("rCard").classList.remove("flip"); $("rCard").style.setProperty("--c", teamColor(rIdx));
+  $("rStep").textContent = `Team ${rIdx + 1} of ${teams.length}`;
+  $("rNext").textContent = `Reveal Team ${rIdx + 1} ✨`; $("rNext").hidden = false;
+}
+$("rNext").onclick = async () => {
+  if (revealing) return;
+  if ($("rCard").classList.contains("flip")) { // advance
+    rIdx++;
+    if (rIdx >= teams.length) return startNaming();
+    return resetCard();
+  }
+  revealing = true; $("rNext").hidden = true;
+  $("rCard").classList.add("shake");
+  for (const n of ["3", "2", "1"]) { $("count3").textContent = n; $("count3").className = "count3 go"; await sleep(650); $("count3").className = "count3"; }
+  $("count3").textContent = ""; $("rCard").classList.remove("shake");
+  const t = teams[rIdx];
+  $("rBack").innerHTML = `<h2>Team ${rIdx + 1}</h2><div class="rmembers">${t.members.map((m, k) =>
+    `<span style="animation-delay:${0.5 + k * 0.18}s">${esc(m.name)}</span>`).join("")}</div>`;
+  $("rCard").classList.add("flip");
+  const c = teamColor(rIdx);
+  setTimeout(() => { confettiBurst({ colors: [c, "#ffffff"] }); confettiBurst({ angle: 60, origin: { x: 0, y: .7 }, colors: [c] }); confettiBurst({ angle: 120, origin: { x: 1, y: .7 }, colors: [c] }); }, 450);
+  await sleep(600 + t.members.length * 180);
+  $("rNext").textContent = rIdx + 1 < teams.length ? "Next team ▶" : "Name the teams ▶";
+  $("rNext").hidden = false; revealing = false;
+};
+
+// 6. name each team
+let nIdx = 0;
+function startNaming() { nIdx = 0; show("sName"); renderNameCard(); }
+function renderNameCard() {
+  const t = teams[nIdx];
+  $("nStep").textContent = `Name team ${nIdx + 1} of ${teams.length}`;
+  $("nCard").style.setProperty("--c", teamColor(nIdx));
+  $("nCard").innerHTML = `<h2>Team ${nIdx + 1}</h2><div class="rmembers">${t.members.map((m) => `<span>${esc(m.name)}</span>`).join("")}</div>`;
+  $("nCard").classList.remove("pop"); void $("nCard").offsetWidth; $("nCard").classList.add("pop");
+  $("nInput").value = ""; $("nInput").placeholder = t.name; $("nInput").focus();
+  $("nNext").textContent = nIdx + 1 < teams.length ? "Next ▶" : "Let's go 🚀";
+}
+$("nForm").onsubmit = async (e) => {
+  e.preventDefault();
+  teams[nIdx].name = $("nInput").value.trim() || teams[nIdx].name;
+  if (++nIdx < teams.length) return renderNameCard();
+  nIdx--; $("nNext").disabled = true; $("err").textContent = "";
+  const { data, error } = await db.rpc("trivia_create_game_v2", { p_title: $("title").value.trim(), p_teams: teams });
+  $("nNext").disabled = false;
+  if (error) { $("err").textContent = error.message; return; }
+  try { localStorage.removeItem("trivia_players"); } catch {}
+  const base = location.origin + location.pathname.replace(/index\.html$/, "");
+  const d = `${base}display.html?game=${data.id}&key=${data.key}`, a = `${base}admin.html?game=${data.id}&key=${data.key}`;
+  $("dLink").value = $("dOpen").href = d; $("aLink").value = a;
+  show("sLinks"); confettiBurst();
+};
+
 document.addEventListener("click", (e) => {
   const id = e.target.dataset.copy; if (!id) return;
   navigator.clipboard.writeText($(id).value); e.target.textContent = "Copied!";

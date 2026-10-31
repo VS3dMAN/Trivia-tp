@@ -6,14 +6,16 @@
 <body><div class="wrap">
   <h1 id="title">🎛️ Admin</h1>
   <p class="muted">Tap to change scores — the projector updates instantly. <a id="disp" target="_blank" style="color:var(--accent)">Open scoreboard ↗</a></p>
+  <div class="tabs"><button class="tab on" data-tab="scores">Scores</button><button class="tab" data-tab="roster">Teams & players</button></div>
   <div class="card" id="teams">Loading…</div>
+  <div id="roster" hidden></div>
   <div class="err" id="err"></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script><script src="common.js"></script>
 <script>
 const id = params.get("game"), key = params.get("key");
-const box = document.getElementById("teams"), err = document.getElementById("err");
+const box = document.getElementById("teams"), rbox = document.getElementById("roster"), err = document.getElementById("err");
 document.getElementById("disp").href = "display.html?game=" + id;
 let game;
 
@@ -22,14 +24,69 @@ function render(g) {
   document.getElementById("title").textContent = "🎛️ " + g.title;
   box.innerHTML = g.teams.map((t, i) => `
     <div class="team">
-      <span class="name">${esc(t.name)}</span>
+      <span class="dot" style="background:${teamColor(i)}"></span>
+      <span class="name">${esc(t.name)}<small>${members(t).length} players</small></span>
       <button class="sbtn m" data-i="${i}" data-d="-5">−5</button>
       <button class="sbtn m" data-i="${i}" data-d="-1">−1</button>
       <span class="score">${t.score}</span>
       <button class="sbtn p" data-i="${i}" data-d="1">+1</button>
       <button class="sbtn p" data-i="${i}" data-d="5">+5</button>
     </div>`).join("");
+  // don't yank the roster out from under someone who is typing in it
+  if (!rbox.contains(document.activeElement) || document.activeElement.tagName === "BUTTON") renderRoster();
 }
+
+function renderRoster() {
+  const opts = (sel) => game.teams.map((t, j) => `<option value="${j}" ${j === sel ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+  rbox.innerHTML = game.teams.map((t, i) => `
+    <div class="card rteam" style="--c:${teamColor(i)}">
+      <input class="tn-edit" data-team="${i}" value="${esc(t.name)}" aria-label="Team name">
+      ${members(t).map((m, k) => `
+        <div class="mrow">
+          <input class="mn-edit" data-team="${i}" data-k="${k}" value="${esc(m.name)}" aria-label="Player name">
+          <select class="mv" data-team="${i}" data-k="${k}" aria-label="Move to team">${opts(i)}</select>
+          <button class="del" data-team="${i}" data-k="${k}" aria-label="Delete player">🗑</button>
+        </div>`).join("") || '<p class="muted">No players</p>'}
+      <form class="row addm" data-team="${i}"><input placeholder="Add player to this team" maxlength="40"><button class="btn ghost">＋</button></form>
+    </div>`).join("");
+}
+
+// Send the whole roster (names + members); the server keeps scores as they are.
+async function saveRoster(roster) {
+  const { error } = await db.rpc("trivia_update_roster", { p_id: id, p_key: key, p_roster: roster });
+  err.textContent = error ? "Failed to save: " + error.message : "";
+  fetchGame(id).then(render);
+}
+const roster = () => game.teams.map((t) => ({ name: t.name, members: members(t).map((m) => ({ ...m })) }));
+
+rbox.addEventListener("change", (e) => {
+  const el = e.target, r = roster(), i = +el.dataset.team, k = +el.dataset.k;
+  if (el.classList.contains("tn-edit")) r[i].name = el.value.trim() || r[i].name;
+  else if (el.classList.contains("mn-edit")) { if (!el.value.trim()) return renderRoster(); r[i].members[k].name = el.value.trim(); }
+  else if (el.classList.contains("mv")) { const [m] = r[i].members.splice(k, 1); r[+el.value].members.push(m); }
+  else return;
+  el.blur(); saveRoster(r);
+});
+rbox.addEventListener("click", (e) => {
+  const b = e.target.closest(".del"); if (!b) return;
+  const r = roster(), i = +b.dataset.team, k = +b.dataset.k;
+  if (!confirm(`Remove ${r[i].members[k].name}?`)) return;
+  r[i].members.splice(k, 1); saveRoster(r);
+});
+rbox.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target, name = f.querySelector("input").value.trim(); if (!name) return;
+  const r = roster(); r[+f.dataset.team].members.push({ id: uid(), name });
+  f.querySelector("input").blur(); saveRoster(r);
+});
+rbox.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches(".tn-edit,.mn-edit")) e.target.blur(); });
+
+document.querySelector(".tabs").onclick = (e) => {
+  const t = e.target.dataset.tab; if (!t) return;
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  box.hidden = t !== "scores"; rbox.hidden = t !== "roster";
+  if (t === "roster") renderRoster();
+};
 
 box.onclick = async (e) => {
   const b = e.target.closest(".sbtn"); if (!b) return;

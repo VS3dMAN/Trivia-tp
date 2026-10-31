@@ -1,5 +1,5 @@
-// Public (publishable) Supabase credentials — safe to ship to the browser.
+// Public (publishable) Supabase credentials for the "trivia" project — safe to ship to the browser.
 window.TRIVIA_CONFIG = {
-  url: "https://xgpclevehyzlrxozhawy.supabase.co",
-  key: "sb_publishable_QKu7gLXWvAJyDSo4BQWa0g_Z93oQVdm",
+  url: "https://njpaqmfmumicwwdfowxy.supabase.co",
+  key: "sb_publishable_t1n_s3iwsrGT0LPTsqfUXA_1cl9PqPH",
 };

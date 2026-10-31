@@ -8,39 +8,94 @@
   <div class="list" id="list"></div>
 </div>
 <button class="btn ghost fs" onclick="document.documentElement.requestFullscreen()">⛶ Fullscreen</button>
+<button class="btn ghost addp" id="addBtn" hidden>＋ Add new player</button>
+
+<div class="modal" id="addModal" hidden>
+  <form class="card" id="addForm" style="width:min(420px,92vw)">
+    <label>New player's name</label>
+    <input id="addName" maxlength="40" autocomplete="off">
+    <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" id="addCancel">Cancel</button><button class="btn" id="addGo">Add & allot 🎲</button></div>
+    <div class="err" id="addErr"></div>
+  </form>
+</div>
+
+<div class="roulette" id="roulette" hidden>
+  <div class="rname" id="rlName"></div>
+  <div class="rteams" id="rlTeams"></div>
+  <div class="rmsg" id="rlMsg"></div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="config.js"></script><script src="common.js"></script>
 <script>
-const id = params.get("game"), list = document.getElementById("list");
+const id = params.get("game"), key = params.get("key"), list = document.getElementById("list");
+const $ = (x) => document.getElementById(x);
 let prev = {}, last = null;
 
 function render(game) {
   last = game;
-  document.getElementById("title").innerHTML = "🏆 " + esc(game.title) + " <span>· Live</span>";
+  $("title").innerHTML = "🏆 " + esc(game.title) + " <span>· Live</span>";
   const teams = game.teams.map((t, i) => ({ ...t, i }));
   const sorted = [...teams].sort((a, b) => b.score - a.score || a.i - b.i);
   const H = list.clientHeight, n = sorted.length, gap = Math.min(16, H * 0.015);
-  const h = Math.min((H - gap * (n - 1)) / n, H * 0.16);
-  const font = Math.max(14, h * 0.45);
+  const h = Math.min((H - gap * (n - 1)) / n, H * 0.18);
+  const font = Math.max(14, h * 0.38);
   sorted.forEach((t, pos) => {
-    let el = document.getElementById("t" + t.i);
+    let el = $("t" + t.i);
     if (!el) {
       el = document.createElement("div"); el.id = "t" + t.i; el.className = "bar";
-      el.innerHTML = '<span class="rank"></span><span class="tname"></span><span class="tscore"></span>';
+      el.innerHTML = '<span class="rank"></span><span class="tinfo"><span class="tname"></span><span class="tmem"></span></span><span class="tscore"></span>';
       el.style.top = pos * (h + gap) + "px"; list.appendChild(el);
     }
     const rank = sorted.findIndex((s) => s.score === t.score) + 1; // ties share a rank
     el.style.height = h + "px"; el.style.fontSize = font + "px"; el.style.top = pos * (h + gap) + "px";
+    el.style.setProperty("--c", teamColor(t.i));
     el.classList.toggle("first", rank === 1 && t.score > 0);
     el.querySelector(".rank").textContent = ["🥇", "🥈", "🥉"][rank - 1] || "#" + rank;
     el.querySelector(".tname").textContent = t.name;
+    el.querySelector(".tmem").textContent = members(t).map((m) => m.name).join(" · ");
     el.querySelector(".tscore").textContent = t.score;
     if (prev[t.i] !== undefined && prev[t.i] !== t.score) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
     prev[t.i] = t.score;
   });
 }
-if (!id) document.getElementById("title").textContent = "No game id in link";
+if (!id) $("title").textContent = "No game id in link";
 else fetchGame(id).then((g) => { render(g); watchGame(id, render); })
-  .catch(() => (document.getElementById("title").textContent = "Game not found"));
+  .catch(() => ($("title").textContent = "Game not found"));
 addEventListener("resize", () => last && render(last));
+
+// ---- Add new player (only when the link carries the admin key) ----
+if (key) $("addBtn").hidden = false;
+$("addBtn").onclick = () => { $("addModal").hidden = false; $("addName").value = ""; $("addErr").textContent = ""; $("addName").focus(); };
+$("addCancel").onclick = () => ($("addModal").hidden = true);
+$("addForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const name = $("addName").value.trim(); if (!name) return;
+  $("addGo").disabled = true;
+  const { data: idx, error } = await db.rpc("trivia_add_member", { p_id: id, p_key: key, p_name: name });
+  $("addGo").disabled = false;
+  if (error) { $("addErr").textContent = error.message; return; }
+  $("addModal").hidden = true;
+  roulette(name, idx);
+};
+
+async function roulette(name, target) {
+  const teams = last.teams;
+  $("rlName").textContent = name; $("rlMsg").textContent = "";
+  $("rlTeams").innerHTML = teams.map((t, i) => `<div class="rt" id="rt${i}" style="--c:${teamColor(i)}">${esc(t.name)}</div>`).join("");
+  $("roulette").hidden = false;
+  // spin: decelerating highlight, ends on the chosen team
+  const n = teams.length, total = n * 3 + target + 1;
+  for (let s = 0; s < total; s++) {
+    document.querySelectorAll(".rt").forEach((el) => el.classList.remove("on"));
+    $("rt" + (s % n)).classList.add("on");
+    await sleep(60 + Math.pow(s / total, 3) * 380);
+  }
+  $("rt" + target).classList.add("win");
+  $("rlMsg").innerHTML = `joins <b style="color:${teamColor(target)}">${esc(teams[target].name)}</b>!`;
+  confettiBurst({ colors: [teamColor(target), "#ffffff"] });
+  await sleep(2600);
+  $("roulette").hidden = true;
+}
 </script></body></html>
