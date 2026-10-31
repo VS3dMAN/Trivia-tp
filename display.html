@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Live Scoreboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css"></head>
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="diwali.css"></head>
 <body><div class="board">
   <h1 id="title">Loading…</h1>
   <div id="boardSub" class="board-sub" hidden></div>
@@ -227,4 +227,4 @@ addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") $("qBack").click();
   if (pos && pos.phase === "live" && /^[a-fA-F]$/.test(e.key)) document.querySelector(`.optb[data-opt="${"abcdef".indexOf(e.key.toLowerCase())}"]`)?.click();
 });
-</script></body></html>
+</script><script src="diwali.js"></script></body></html>
